@@ -33,8 +33,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <BLEAdvertising.h>
-
+#include <BLEAdvertising.h>    // DDW:  Added, verify if this in needed
 #define Heartrate_SERVICE_UUID (uint16_t(0x180D))
 #define Heartrate_CHARACTERISTIC_UUID (uint16_t(0x2A37))
 #define sp02_SERVICE_UUID (uint16_t(0x1822)) 
@@ -895,18 +894,18 @@ void ble_advertising()
 
 //function takes String and adds manufacturer code at the beginning 
 // source: https://github.com/nkolban/esp32-snippets/issues/375
-void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
+// void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
   
-  String s;
-  char b2 = (char)(m_code >> 8);
-  m_code <<= 8;
-  char b1 = (char)(m_code >> 8);
-  s.concat(b1);
-  s.concat(b2);
-  s.concat(c);
-  adv.setManufacturerData(s.c_str());
+//   String s;
+//   char b2 = (char)(m_code >> 8);
+//   m_code <<= 8;
+//   char b1 = (char)(m_code >> 8);
+//   s.concat(b1);
+//   s.concat(b2);
+//   s.concat(c);
+//   adv.setManufacturerData(s.c_str());
   
-}
+// }
 
 
 void update_advertising() {
@@ -916,9 +915,9 @@ void update_advertising() {
   Serial.println(adv_data);
 
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  BLEAdvertisementData scan_response;
-  int man_code = 0x02E5;
-  setManData(adv_data, sizeof(adv_data), scan_response, man_code);
+  // BLEAdvertisementData scan_response;
+  // int man_code = 0x02E5;
+  // setManData(adv_data, sizeof(adv_data), scan_response, man_code);
 
   pAdvertising->stop();
 //  pAdvertising->setScanResponseData(scan_response);
