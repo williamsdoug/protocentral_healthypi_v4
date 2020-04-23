@@ -592,8 +592,8 @@ void HealthyPiV4_BLE_Init()
   pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x00);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
-  ble_advertising(); 
-  Serial.println("Waiting a client connection to notify...");
+  // ble_advertising(); 
+  // Serial.println("Waiting a client connection to notify...");
 }
 
 void read_battery_value()
@@ -1388,6 +1388,13 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(ADS1292_DRDY_PIN),ads1292r_interrupt_handler, FALLING ); // Digital2 is attached to Data ready pin of AFE is interrupt0 in ARduino
   tempSensor.begin();
   Serial.println("Initialization is complete");
+
+  if(Healthypi_Mode == BLE_MODE)
+  {
+    ble_advertising(); 
+    Serial.println("Waiting a client connection to notify...");
+  }
+
 }
 
 
