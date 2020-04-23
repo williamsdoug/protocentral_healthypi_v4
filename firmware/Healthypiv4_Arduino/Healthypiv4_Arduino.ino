@@ -882,7 +882,9 @@ void ble_advertising()
 
 void update_advertising() {
   Serial.println("Updated advertising");
-
+  char sensor_data[20]; 
+  sprintf(sensor_data, "%d,%d,%d,%d", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature);
+  Serial.println(sensor_data)
 }
 
 
