@@ -849,6 +849,7 @@ float rmssd_ff(unsigned int array[])
   return rmssd;
 }
 
+
 //Led_indications
 void ble_advertising()
 {
@@ -865,13 +866,25 @@ void ble_advertising()
     {  
       boolean has_valid_data = get_ADS1292R_data();
       if (has_valid_data) {
-        Serial.println("new data");
+        Serial.println("new valid HR data");
       }
     }
 
+    read_afe4490_data();
+    get_temp_data();
+    read_battery_value();
+
+    update_advertising();
+    }
   }
+}
+
+
+void update_advertising() {
+  Serial.println("Updated advertising");
 
 }
+
 
 void V3_mode_indication()
 {
