@@ -850,31 +850,50 @@ float rmssd_ff(unsigned int array[])
 }
 
 
+
+
+
 //Led_indications
 void ble_advertising()
 {
+  long adv_count=0;
+  const long blink_off = (100*SAMPLING_RATE/1000);
+  const long interval = (3000*SAMPLING_RATE/1000);
 
   while((deviceConnected==false)&&(slide_switch_flag==false)&&(mode_write_flag==false))
   {
-    digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
-    delay(100);                       // wait for a 100ms
-    digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
-    delay(3000);
+    // digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
+    // delay(100);                       // wait for a 100ms
+    // digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
+    // delay(3000);
+
+    if (adv_count==0) 
+    {
+      digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
+    } else if (adv_count==blink_off)
+    {
+      digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
+    }
 
     boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
     if (ret == true)
     {  
       boolean has_valid_data = get_ADS1292R_data();
-      if (has_valid_data) {
-        Serial.println("new valid HR data");
-      }
+      // if (has_valid_data) {
+      //   Serial.println("new valid HR data");
+      // }
     }
 
     read_afe4490_data();
-    get_temp_data();
-    read_battery_value();
 
-    update_advertising();
+    adv_count++;
+    if (adv_count==interval) {
+      adv_count = 0;
+
+      get_temp_data();
+      read_battery_value();
+      update_advertising();
+    }
     
   }
 }
