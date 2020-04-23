@@ -875,7 +875,7 @@ void ble_advertising()
     read_battery_value();
 
     update_advertising();
-    }
+    
   }
 }
 
