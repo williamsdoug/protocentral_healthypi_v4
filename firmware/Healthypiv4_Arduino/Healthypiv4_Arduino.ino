@@ -876,25 +876,26 @@ void ble_advertising()
       // if (has_valid_data) {
       //   Serial.println("new valid HR data");
       // }
-    }
+    
 
-    read_afe4490_data();
+      read_afe4490_data();
 
-    if (adv_count==0) 
-    {
-      digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
-    } else if (adv_count==blink_off)
-    {
-      digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
-    }
+      if (adv_count==0) 
+      {
+        digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
+      } else if (adv_count==blink_off)
+      {
+        digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
+      }
 
-    adv_count++;
-    if (adv_count==interval) {
-      adv_count = 0;
+      adv_count++;
+      if (adv_count==interval) {
+        adv_count = 0;
 
-      get_temp_data();
-      read_battery_value();
-      update_advertising();
+        get_temp_data();
+        read_battery_value();
+        update_advertising();
+      }
     }
     
   }
