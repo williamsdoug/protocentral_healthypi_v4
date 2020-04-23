@@ -33,6 +33,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <BLEAdvertising.h>
 
 #define Heartrate_SERVICE_UUID (uint16_t(0x180D))
 #define Heartrate_CHARACTERISTIC_UUID (uint16_t(0x2A37))
@@ -917,11 +918,11 @@ void update_advertising() {
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   BLEAdvertisementData scan_response;
   int man_code = 0x02E5;
-  setManData(adv_data, adv_data.length(), scan_response, man_code);
+  setManData(adv_data, sizeof(adv_data), scan_response, man_code);
 
   pAdvertising->stop();
-  pAdvertising->setScanResponseData(scan_response);
-  //pAdvertising->setScanResponse(true);
+//  pAdvertising->setScanResponseData(scan_response);
+//  //pAdvertising->setScanResponse(true);
   pAdvertising->start();
 
 }
