@@ -589,7 +589,7 @@ void HealthyPiV4_BLE_Init()
   pAdvertising->addServiceUUID(BATTERY_SERVICE_UUID);
   pAdvertising->addServiceUUID(HRV_SERVICE_UUID);
   pAdvertising->addServiceUUID(DATASTREAM_SERVICE_UUID);
-  pAdvertising->setScanResponse(false);
+  //pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x00);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
   // ble_advertising(); 
@@ -892,11 +892,38 @@ void ble_advertising()
 }
 
 
+//function takes String and adds manufacturer code at the beginning 
+// source: https://github.com/nkolban/esp32-snippets/issues/375
+void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
+  
+  String s;
+  char b2 = (char)(m_code >> 8);
+  m_code <<= 8;
+  char b1 = (char)(m_code >> 8);
+  s.concat(b1);
+  s.concat(b2);
+  s.concat(c);
+  adv.setManufacturerData(s.c_str());
+  
+}
+
+
 void update_advertising() {
   Serial.println("Updated advertising");
-  char sensor_data[20]; 
-  sprintf(sensor_data, "%d,%d,%d,%d", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature);
-  Serial.println(sensor_data);
+  char adv_data[20]; 
+  sprintf(adv_data, "%d,%d,%d,%d", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature);
+  Serial.println(adv_data);
+
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  BLEAdvertisementData scan_response;
+  int man_code = 0x02E5;
+  setManData(adv_data, adv_data.length(), scan_response, man_code);
+
+  pAdvertising->stop();
+  pAdvertising->setScanResponseData(scan_response);
+  //pAdvertising->setScanResponse(true);
+  pAdvertising->start();
+
 }
 
 
