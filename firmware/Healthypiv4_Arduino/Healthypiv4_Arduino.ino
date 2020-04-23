@@ -850,7 +850,7 @@ float rmssd_ff(unsigned int array[])
 }
 
 
-
+// TODO:  Investigate why interrupts are disables at startup
 
 
 //Led_indications
@@ -862,36 +862,24 @@ void ble_advertising()
 
   while((deviceConnected==false)&&(slide_switch_flag==false)&&(mode_write_flag==false))
   {
-    // digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
-    // delay(100);                       // wait for a 100ms
-    // digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
-    // delay(3000);
-
-
-
     boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
     if (ret == true)
     {  
-      boolean has_valid_data = get_ADS1292R_data();
-      // if (has_valid_data) {
-      //   Serial.println("new valid HR data");
-      // }
-    
-
+      get_ADS1292R_data();
       read_afe4490_data();
 
-      if (adv_count==0) 
+      if (time_count==0) 
       {
         digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
-      } else if (adv_count==blink_off)
+      } else if (time_count==blink_off)
       {
         digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
       }
 
-      adv_count++;
-      if (adv_count==interval) {
-        adv_count = 0;
 
+      if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL)
+      {      
+        time_count = 0;
         get_temp_data();
         read_battery_value();
         update_advertising();
@@ -899,6 +887,8 @@ void ble_advertising()
     }
     
   }
+  // Make sure light if off upon exit
+  digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
 }
 
 
@@ -1547,6 +1537,7 @@ void loop()
       get_temp_data();
       //reading the battery with same interval as temp sensor
       read_battery_value();
+      update_advertising();
     }
   
     if(Healthypi_Mode == BLE_MODE)
