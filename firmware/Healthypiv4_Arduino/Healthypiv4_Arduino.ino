@@ -1386,87 +1386,21 @@ boolean get_ADS1292R_data() {
       add_hr_histgrm(global_HeartRate);
       npeakflag = 0;
     }
+
+    DataPacket[14] = global_RespirationRate;
+    DataPacket[16] = global_HeartRate;
+
     has_valid_data = true;
   }
+
+  memcpy(&DataPacket[0], &ecg_filterout, 2);
+  memcpy(&DataPacket[2], &resp_filterout, 2);
 
   return has_valid_data;
 }
 
 
-
-void loop()
-{
-  boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
-
-  if (ret == true)
-  {  
-    boolean has_valid_data = get_ADS1292R_data();
-
-    // ecg_wave_sample = (int16_t)(ads1292r_raw_data.raw_ecg >> 8) ;  // ignore the lower 8 bits out of 24bits 
-    // res_wave_sample = (int16_t)(ads1292r_raw_data.raw_resp>>8) ;
-  
-    // if (!((ads1292r_raw_data.status_reg & 0x1f) == 0))
-    // {
-    //   leadoff_detected  = true; 
-    //   lead_flag = 0x04;
-    //   ecg_filterout = 0;
-    //   resp_filterout = 0;      
-    //   DataPacket[14] = 0;
-    //   DataPacket[16] = 0;
-    // }  
-    // else
-    // {
-    //   leadoff_detected  = false;
-    //   lead_flag = 0x06;
-    //   ECG_RESPIRATION_ALGORITHM.Filter_CurrentECG_sample(&ecg_wave_sample, &ecg_filterout);   // filter out the line noise @40Hz cutoff 161 order
-    //   ECG_RESPIRATION_ALGORITHM.Calculate_HeartRate(ecg_filterout,&global_HeartRate,&npeakflag); // calculate
-    //   ECG_RESPIRATION_ALGORITHM.Filter_CurrentRESP_sample(res_wave_sample, &resp_filterout);
-    //   ECG_RESPIRATION_ALGORITHM.Calculate_RespRate(resp_filterout,&global_RespirationRate);   
-   
-    //   if(npeakflag == 1)
-    //   {
-    //     read_send_data(global_HeartRate,global_RespirationRate);
-    //     add_hr_histgrm(global_HeartRate);
-    //     npeakflag = 0;
-    //   }
-
-    if (has_valid_data) {
-   
-      if(Healthypi_Mode == BLE_MODE)
-      {
-        ecg_data_buff[ecg_stream_cnt++] = (uint8_t)ecg_wave_sample;//ecg_filterout;
-        ecg_data_buff[ecg_stream_cnt++] = (ecg_wave_sample>>8);//(ecg_filterout>>8);
-      
-       if(ecg_stream_cnt >=18)
-       {
-          ecg_buf_ready = true;
-          ecg_stream_cnt = 0;
-       }
-       
-      }
-      else if(Healthypi_Mode == WEBSERVER_MODE)
-      {
-        
-        if(index_cnt< 1200)
-        {  
-          static uint8_t ec = 0;
-          tmp_ecgbu += String(ecg_wave_sample);
-          tmp_ecgbu += String(",");
-          number_of_samples++;
-        }
-        else
-        {
-          // Do Nothing
-        }
-
-      }
-   
-      DataPacket[14] = global_RespirationRate;
-      DataPacket[16] = global_HeartRate;
-    }
-  
-    memcpy(&DataPacket[0], &ecg_filterout, 2);
-    memcpy(&DataPacket[2], &resp_filterout, 2);
+void read_afe4490_data() {
     SPI.setDataMode (SPI_MODE0);
     afe4490.get_AFE4490_Data(&afe44xx_raw_data,AFE4490_CS_PIN,AFE4490_DRDY_PIN);
     ppg_wave_ir = (uint16_t)(afe44xx_raw_data.IR_data>>8);
@@ -1507,15 +1441,119 @@ void loop()
     DataPacket[19]=  ads1292r_raw_data.status_reg;  
 
     SPI.setDataMode (SPI_MODE1);
+
+}
+
+void get_temp_data() {
+  temp = tempSensor.getTemperature()*100; // read temperature for every 100ms
+  temperature =  (uint16_t) temp;
+  DataPacket[12] = (uint8_t) temperature; 
+  DataPacket[13] = (uint8_t) (temperature >> 8);
+  temp_data_ready = true;
+}
+
+
+
+void loop()
+{
+  boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
+
+  if (ret == true)
+  {  
+    boolean has_valid_data = get_ADS1292R_data();
+    if (has_valid_data) {
+   
+      if(Healthypi_Mode == BLE_MODE)
+      {
+        ecg_data_buff[ecg_stream_cnt++] = (uint8_t)ecg_wave_sample;//ecg_filterout;
+        ecg_data_buff[ecg_stream_cnt++] = (ecg_wave_sample>>8);//(ecg_filterout>>8);
+      
+       if(ecg_stream_cnt >=18)
+       {
+          ecg_buf_ready = true;
+          ecg_stream_cnt = 0;
+       }
+       
+      }
+      else if(Healthypi_Mode == WEBSERVER_MODE)
+      {
+        
+        if(index_cnt< 1200)
+        {  
+          static uint8_t ec = 0;
+          tmp_ecgbu += String(ecg_wave_sample);
+          tmp_ecgbu += String(",");
+          number_of_samples++;
+        }
+        else
+        {
+          // Do Nothing
+        }
+
+      }
+   
+      // DataPacket[14] = global_RespirationRate;
+      // DataPacket[16] = global_HeartRate;
+    }
+  
+    // memcpy(&DataPacket[0], &ecg_filterout, 2);
+    // memcpy(&DataPacket[2], &resp_filterout, 2);
+
+    read_afe4490_data();
+
+
+    // SPI.setDataMode (SPI_MODE0);
+    // afe4490.get_AFE4490_Data(&afe44xx_raw_data,AFE4490_CS_PIN,AFE4490_DRDY_PIN);
+    // ppg_wave_ir = (uint16_t)(afe44xx_raw_data.IR_data>>8);
+    // ppg_wave_ir = ppg_wave_ir;
+    
+    // ppg_data_buff[ppg_stream_cnt++] = (uint8_t)ppg_wave_ir;
+    // ppg_data_buff[ppg_stream_cnt++] = (ppg_wave_ir>>8);
+  
+    // if(ppg_stream_cnt >=18)
+    // {
+    //   ppg_buf_ready = true;
+    //   ppg_stream_cnt = 0;
+    // }
+  
+    // memcpy(&DataPacket[4], &afe44xx_raw_data.IR_data, sizeof(signed long));
+    // memcpy(&DataPacket[8], &afe44xx_raw_data.RED_data, sizeof(signed long));
+  
+    // if( afe44xx_raw_data.buffer_count_overflow)
+    // {
+      
+    //   if (afe44xx_raw_data.spo2 == -999)
+    //   {
+    //     DataPacket[15] = 0;
+    //     sp02 = 0;
+    //   }
+    //   else
+    //   { 
+    //     DataPacket[15] =  afe44xx_raw_data.spo2;
+    //     sp02 = (uint8_t)afe44xx_raw_data.spo2;       
+    //   }
+
+    //   spo2_calc_done = true;
+    //   afe44xx_raw_data.buffer_count_overflow = false;
+    // }
+   
+    // DataPacket[17] = 80;  //bpsys
+    // DataPacket[18] = 120; //bp dia
+    // DataPacket[19]=  ads1292r_raw_data.status_reg;  
+
+    // SPI.setDataMode (SPI_MODE1);
    
     if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL)
     {      
-      temp = tempSensor.getTemperature()*100; // read temperature for every 100ms
-      temperature =  (uint16_t) temp;
       time_count = 0;
-      DataPacket[12] = (uint8_t) temperature; 
-      DataPacket[13] = (uint8_t) (temperature >> 8);
-      temp_data_ready = true;
+      // temp = tempSensor.getTemperature()*100; // read temperature for every 100ms
+      // temperature =  (uint16_t) temp;
+      // time_count = 0;
+      // DataPacket[12] = (uint8_t) temperature; 
+      // DataPacket[13] = (uint8_t) (temperature >> 8);
+      // temp_data_ready = true;
+
+      get_temp_data();
       //reading the battery with same interval as temp sensor
       read_battery_value();
     }
