@@ -859,6 +859,16 @@ void ble_advertising()
     delay(100);                       // wait for a 100ms
     digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
     delay(3000);
+
+    boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
+    if (ret == true)
+    {  
+      boolean has_valid_data = get_ADS1292R_data();
+      if (has_valid_data) {
+        Serial.println("new data");
+      }
+    }
+
   }
 
 }
@@ -1354,7 +1364,6 @@ void setup()
 }
 
 
-
 boolean get_ADS1292R_data() {
   boolean has_valid_data;
 
@@ -1444,6 +1453,7 @@ void read_afe4490_data() {
 
 }
 
+
 void get_temp_data() {
   temp = tempSensor.getTemperature()*100; // read temperature for every 100ms
   temperature =  (uint16_t) temp;
@@ -1451,7 +1461,6 @@ void get_temp_data() {
   DataPacket[13] = (uint8_t) (temperature >> 8);
   temp_data_ready = true;
 }
-
 
 
 void loop()
@@ -1491,68 +1500,13 @@ void loop()
         }
 
       }
-   
-      // DataPacket[14] = global_RespirationRate;
-      // DataPacket[16] = global_HeartRate;
     }
   
-    // memcpy(&DataPacket[0], &ecg_filterout, 2);
-    // memcpy(&DataPacket[2], &resp_filterout, 2);
-
     read_afe4490_data();
-
-
-    // SPI.setDataMode (SPI_MODE0);
-    // afe4490.get_AFE4490_Data(&afe44xx_raw_data,AFE4490_CS_PIN,AFE4490_DRDY_PIN);
-    // ppg_wave_ir = (uint16_t)(afe44xx_raw_data.IR_data>>8);
-    // ppg_wave_ir = ppg_wave_ir;
-    
-    // ppg_data_buff[ppg_stream_cnt++] = (uint8_t)ppg_wave_ir;
-    // ppg_data_buff[ppg_stream_cnt++] = (ppg_wave_ir>>8);
-  
-    // if(ppg_stream_cnt >=18)
-    // {
-    //   ppg_buf_ready = true;
-    //   ppg_stream_cnt = 0;
-    // }
-  
-    // memcpy(&DataPacket[4], &afe44xx_raw_data.IR_data, sizeof(signed long));
-    // memcpy(&DataPacket[8], &afe44xx_raw_data.RED_data, sizeof(signed long));
-  
-    // if( afe44xx_raw_data.buffer_count_overflow)
-    // {
-      
-    //   if (afe44xx_raw_data.spo2 == -999)
-    //   {
-    //     DataPacket[15] = 0;
-    //     sp02 = 0;
-    //   }
-    //   else
-    //   { 
-    //     DataPacket[15] =  afe44xx_raw_data.spo2;
-    //     sp02 = (uint8_t)afe44xx_raw_data.spo2;       
-    //   }
-
-    //   spo2_calc_done = true;
-    //   afe44xx_raw_data.buffer_count_overflow = false;
-    // }
-   
-    // DataPacket[17] = 80;  //bpsys
-    // DataPacket[18] = 120; //bp dia
-    // DataPacket[19]=  ads1292r_raw_data.status_reg;  
-
-    // SPI.setDataMode (SPI_MODE1);
    
     if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL)
     {      
       time_count = 0;
-      // temp = tempSensor.getTemperature()*100; // read temperature for every 100ms
-      // temperature =  (uint16_t) temp;
-      // time_count = 0;
-      // DataPacket[12] = (uint8_t) temperature; 
-      // DataPacket[13] = (uint8_t) (temperature >> 8);
-      // temp_data_ready = true;
-
       get_temp_data();
       //reading the battery with same interval as temp sensor
       read_battery_value();
