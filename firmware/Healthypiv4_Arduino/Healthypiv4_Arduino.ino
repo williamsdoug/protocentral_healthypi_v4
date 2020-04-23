@@ -1353,39 +1353,84 @@ void setup()
   Serial.println("Initialization is complete");
 }
 
+
+
+boolean get_ADS1292R_data() {
+  boolean has_valid_data;
+
+  ecg_wave_sample = (int16_t)(ads1292r_raw_data.raw_ecg >> 8) ;  // ignore the lower 8 bits out of 24bits 
+  res_wave_sample = (int16_t)(ads1292r_raw_data.raw_resp>>8) ;
+  
+  if (!((ads1292r_raw_data.status_reg & 0x1f) == 0))
+  {
+    leadoff_detected  = true; 
+    lead_flag = 0x04;
+    ecg_filterout = 0;
+    resp_filterout = 0;      
+    DataPacket[14] = 0;
+    DataPacket[16] = 0;
+    has_valid_data = false;
+  }  
+  else
+  {
+    leadoff_detected  = false;
+    lead_flag = 0x06;
+    ECG_RESPIRATION_ALGORITHM.Filter_CurrentECG_sample(&ecg_wave_sample, &ecg_filterout);   // filter out the line noise @40Hz cutoff 161 order
+    ECG_RESPIRATION_ALGORITHM.Calculate_HeartRate(ecg_filterout,&global_HeartRate,&npeakflag); // calculate
+    ECG_RESPIRATION_ALGORITHM.Filter_CurrentRESP_sample(res_wave_sample, &resp_filterout);
+    ECG_RESPIRATION_ALGORITHM.Calculate_RespRate(resp_filterout,&global_RespirationRate);   
+  
+    if(npeakflag == 1)
+    {
+      read_send_data(global_HeartRate,global_RespirationRate);
+      add_hr_histgrm(global_HeartRate);
+      npeakflag = 0;
+    }
+    has_valid_data = true;
+  }
+
+  return has_valid_data;
+}
+
+
+
 void loop()
 {
   boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
 
   if (ret == true)
   {  
-    ecg_wave_sample = (int16_t)(ads1292r_raw_data.raw_ecg >> 8) ;  // ignore the lower 8 bits out of 24bits 
-    res_wave_sample = (int16_t)(ads1292r_raw_data.raw_resp>>8) ;
+    boolean has_valid_data = get_ADS1292R_data();
+
+    // ecg_wave_sample = (int16_t)(ads1292r_raw_data.raw_ecg >> 8) ;  // ignore the lower 8 bits out of 24bits 
+    // res_wave_sample = (int16_t)(ads1292r_raw_data.raw_resp>>8) ;
   
-    if (!((ads1292r_raw_data.status_reg & 0x1f) == 0))
-    {
-      leadoff_detected  = true; 
-      lead_flag = 0x04;
-      ecg_filterout = 0;
-      resp_filterout = 0;      
-      DataPacket[14] = 0;
-      DataPacket[16] = 0;
-    }  
-    else
-    {
-      leadoff_detected  = false;
-      lead_flag = 0x06;
-      ECG_RESPIRATION_ALGORITHM.Filter_CurrentECG_sample(&ecg_wave_sample, &ecg_filterout);   // filter out the line noise @40Hz cutoff 161 order
-      ECG_RESPIRATION_ALGORITHM.Calculate_HeartRate(ecg_filterout,&global_HeartRate,&npeakflag); // calculate
-      ECG_RESPIRATION_ALGORITHM.Filter_CurrentRESP_sample(res_wave_sample, &resp_filterout);
-      ECG_RESPIRATION_ALGORITHM.Calculate_RespRate(resp_filterout,&global_RespirationRate);   
+    // if (!((ads1292r_raw_data.status_reg & 0x1f) == 0))
+    // {
+    //   leadoff_detected  = true; 
+    //   lead_flag = 0x04;
+    //   ecg_filterout = 0;
+    //   resp_filterout = 0;      
+    //   DataPacket[14] = 0;
+    //   DataPacket[16] = 0;
+    // }  
+    // else
+    // {
+    //   leadoff_detected  = false;
+    //   lead_flag = 0x06;
+    //   ECG_RESPIRATION_ALGORITHM.Filter_CurrentECG_sample(&ecg_wave_sample, &ecg_filterout);   // filter out the line noise @40Hz cutoff 161 order
+    //   ECG_RESPIRATION_ALGORITHM.Calculate_HeartRate(ecg_filterout,&global_HeartRate,&npeakflag); // calculate
+    //   ECG_RESPIRATION_ALGORITHM.Filter_CurrentRESP_sample(res_wave_sample, &resp_filterout);
+    //   ECG_RESPIRATION_ALGORITHM.Calculate_RespRate(resp_filterout,&global_RespirationRate);   
    
-      if(npeakflag == 1)
-      {
-        read_send_data(global_HeartRate,global_RespirationRate);
-        add_hr_histgrm(global_HeartRate);
-        npeakflag = 0;
-      }
+    //   if(npeakflag == 1)
+    //   {
+    //     read_send_data(global_HeartRate,global_RespirationRate);
+    //     add_hr_histgrm(global_HeartRate);
+    //     npeakflag = 0;
+    //   }
+
+    if (has_valid_data) {
    
       if(Healthypi_Mode == BLE_MODE)
       {
