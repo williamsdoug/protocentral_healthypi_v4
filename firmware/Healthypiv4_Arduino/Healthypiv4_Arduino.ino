@@ -867,13 +867,7 @@ void ble_advertising()
     // digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
     // delay(3000);
 
-    if (adv_count==0) 
-    {
-      digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
-    } else if (adv_count==blink_off)
-    {
-      digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
-    }
+
 
     boolean ret = ADS1292R.getAds1292r_Data_if_Available(ADS1292_DRDY_PIN,ADS1292_CS_PIN,&ads1292r_raw_data);
     if (ret == true)
@@ -885,6 +879,14 @@ void ble_advertising()
     }
 
     read_afe4490_data();
+
+    if (adv_count==0) 
+    {
+      digitalWrite(A13, LOW);   // turn the LED on (HIGH is the voltage level)
+    } else if (adv_count==blink_off)
+    {
+      digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
+    }
 
     adv_count++;
     if (adv_count==interval) {
