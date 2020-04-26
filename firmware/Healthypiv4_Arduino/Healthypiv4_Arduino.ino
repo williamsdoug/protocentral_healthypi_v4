@@ -931,11 +931,13 @@ void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
 }
 
 
+uint mfg_update_seq = 0;
+
 void update_advertising() {
   Serial.println("Updated advertising");
 
   char mfg_data[20]; 
-  sprintf(mfg_data, "%d %d %d %d", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature);
+  sprintf(mfg_data, "H%u R%u S%u T%u G%u", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature, mfg_update_seq++);
   Serial.println(mfg_data);
 
   BLEAdvertisementData scan_response;
