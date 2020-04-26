@@ -1,3 +1,4 @@
+// DDW Modified Version
 //////////////////////////////////////////////////////////////////////////////////////////
 //   Arduino Library for Healthypi-v4
 //   
@@ -15,6 +16,9 @@
 //   Requires g4p_control graphing library for processing. 
 //   Downloaded from Processing IDE Sketch->Import Library->Add Library->G4P Install
 //////////////////////////////////////////////////////////////////////////////////////
+
+// #include "esp32-hal-log.h"
+
 #include <SPI.h>
 #include <Wire.h>
 #include <WiFi.h>
@@ -33,7 +37,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <BLEAdvertising.h>    // DDW:  Added, verify if this in needed
+#include <BLEAdvertising.h> 
 #define Heartrate_SERVICE_UUID (uint16_t(0x180D))
 #define Heartrate_CHARACTERISTIC_UUID (uint16_t(0x2A37))
 #define sp02_SERVICE_UUID (uint16_t(0x1822)) 
@@ -65,6 +69,10 @@
 #define HISTGRM_DATA_SIZE      12*4
 #define HISTGRM_CALC_TH         10
 #define MAX                     20
+
+
+const char* ble_device_name = "Healthypi v4";
+const int man_code = 0x02E5;   //manufacturer code (0x02E5 for Espressif)
 
 unsigned int array[MAX];
 
@@ -203,6 +211,10 @@ class MyServerCallbacks: public BLEServerCallbacks
   {
     deviceConnected = true;
     Serial.println("connected");
+
+    // Keep advertising
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->start();
   }
 
   void onDisconnect(BLEServer* pServer)
@@ -505,7 +517,8 @@ void readFile(fs::FS &fs, const char * path, int* data_count, char* file_data)
 
 void HealthyPiV4_BLE_Init()
 {
-  BLEDevice::init("Healthypi v4"); // Create the BLE Device
+  //BLEDevice::init("Healthypi v4"); // Create the BLE Device
+  BLEDevice::init(ble_device_name); // Create the BLE Device
   pServer = BLEDevice::createServer();   // Create the BLE Server
   pServer->setCallbacks(new MyServerCallbacks());
   BLEService *HeartrateService = pServer->createService(Heartrate_SERVICE_UUID);   // Create the BLE Service
@@ -581,6 +594,7 @@ void HealthyPiV4_BLE_Init()
   hrvService->start();
   datastreamService->start();
 
+
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(Heartrate_SERVICE_UUID);
@@ -589,7 +603,16 @@ void HealthyPiV4_BLE_Init()
   pAdvertising->addServiceUUID(BATTERY_SERVICE_UUID);
   pAdvertising->addServiceUUID(HRV_SERVICE_UUID);
   pAdvertising->addServiceUUID(DATASTREAM_SERVICE_UUID);
+
+
   //pAdvertising->setScanResponse(false);
+
+  // add scan response
+  BLEAdvertisementData scan_response;
+  scan_response.setName(ble_device_name);
+  pAdvertising->setScanResponseData(scan_response);
+
+
   pAdvertising->setMinPreferred(0x00);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
   // ble_advertising(); 
@@ -894,34 +917,35 @@ void ble_advertising()
 
 //function takes String and adds manufacturer code at the beginning 
 // source: https://github.com/nkolban/esp32-snippets/issues/375
-// void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
+void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
   
-//   String s;
-//   char b2 = (char)(m_code >> 8);
-//   m_code <<= 8;
-//   char b1 = (char)(m_code >> 8);
-//   s.concat(b1);
-//   s.concat(b2);
-//   s.concat(c);
-//   adv.setManufacturerData(s.c_str());
+  String s;
+  char b2 = (char)(m_code >> 8);
+  m_code <<= 8;
+  char b1 = (char)(m_code >> 8);
+  s.concat(b1);
+  s.concat(b2);
+  s.concat(c);
+  adv.setManufacturerData(s.c_str());
   
-// }
+}
 
 
 void update_advertising() {
   Serial.println("Updated advertising");
-  char adv_data[20]; 
-  sprintf(adv_data, "%d,%d,%d,%d", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature);
-  Serial.println(adv_data);
 
+  char mfg_data[20]; 
+  sprintf(mfg_data, "%d %d %d %d", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature);
+  Serial.println(mfg_data);
+
+  BLEAdvertisementData scan_response;
+  scan_response.setName(ble_device_name);
+  setManData(mfg_data, strlen(mfg_data), scan_response, man_code);
+
+  // Update and restart advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  // BLEAdvertisementData scan_response;
-  // int man_code = 0x02E5;
-  // setManData(adv_data, sizeof(adv_data), scan_response, man_code);
-
   pAdvertising->stop();
-//  pAdvertising->setScanResponseData(scan_response);
-//  //pAdvertising->setScanResponse(true);
+  pAdvertising->setScanResponseData(scan_response);
   pAdvertising->start();
 
 }
@@ -1327,6 +1351,10 @@ void setup()
   delay(2000);
   Serial.begin(115200);  // Baudrate for serial communication
   Serial.println("Setting up Healthy pI V4...");
+
+  // Enable Debug logging
+  // Serial.setDebugOutput(true);   // NEW
+  // esp_log_level_set("*", ESP_LOG_DEBUG); // NEW
   
   // initalize the  data ready and chip select pins:
   pinMode(ADS1292_DRDY_PIN, INPUT);  
