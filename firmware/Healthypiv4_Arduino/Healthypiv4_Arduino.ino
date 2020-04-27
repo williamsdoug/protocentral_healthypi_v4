@@ -73,6 +73,7 @@
 
 const char* ble_device_name = "Healthypi v4";
 const int man_code = 0x02E5;   //manufacturer code (0x02E5 for Espressif)
+char mfg_update_seq = 0;
 
 unsigned int array[MAX];
 
@@ -610,14 +611,18 @@ void HealthyPiV4_BLE_Init()
   // add scan response
   BLEAdvertisementData scan_response;
   scan_response.setName(ble_device_name);
+  char* mfg_data = "Initial Data";
+  setManData(mfg_data, strlen(mfg_data), scan_response, man_code);
   pAdvertising->setScanResponseData(scan_response);
-
+  //pAdvertising->setScanResponse(true);
 
   pAdvertising->setMinPreferred(0x00);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
   // ble_advertising(); 
   // Serial.println("Waiting a client connection to notify...");
 }
+
+
 
 void read_battery_value()
 {
@@ -930,15 +935,45 @@ void setManData(String c, int c_size, BLEAdvertisementData &adv, int m_code) {
   
 }
 
+void setManData(char* c, int c_size, BLEAdvertisementData &adv, int m_code) {
+  String s;
+  char b2 = (char)(m_code >> 8);
+  m_code <<= 8;
+  char b1 = (char)(m_code >> 8);
+  s.concat(b1);
+  s.concat(b2);
+  for(int i=0; i<c_size; i++) {
+    s.concat(c[i]);
+  }
+  adv.setManufacturerData(s.c_str());
+}
 
-uint mfg_update_seq = 0;
+
+/*
+Manufacturer Data Format -- all values encoded in hex characters
+md[1:0] - Sequence number (mod 255)
+md[2:3] - HR
+md[4:5] - RR
+md[6:9] - Temp
+md[10:11] - Battery
+*/
 
 void update_advertising() {
   Serial.println("Updated advertising");
 
-  char mfg_data[20]; 
-  sprintf(mfg_data, "H%u R%u S%u T%u G%u", global_HeartRate, global_RespirationRate, afe44xx_raw_data.spo2, temperature, mfg_update_seq++);
+  char mfg_data[30]; 
+  sprintf(mfg_data, "G%x H%x R%x S%x T%x", mfg_update_seq, global_HeartRate, global_RespirationRate, 
+          afe44xx_raw_data.spo2, temperature);
   Serial.println(mfg_data);
+
+  sprintf(mfg_data, "%02x%02x%02x%04x%02x%02x", mfg_update_seq, (uint)global_HeartRate & 0xFF, 
+          (uint)global_RespirationRate & 0xFF, (uint)temperature & 0xFFFF, bat_percent & 0xff
+          );
+  int mfg_data_len = 12;
+  mfg_data[mfg_data_len] = '\0';
+  Serial.println(mfg_data);
+
+  mfg_update_seq++;
 
   BLEAdvertisementData scan_response;
   scan_response.setName(ble_device_name);
