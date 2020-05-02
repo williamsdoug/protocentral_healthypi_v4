@@ -918,10 +918,7 @@ void ble_advertising()
         get_temp_data();
         read_battery_value();
         if (enable_broadcast_mode)
-            update_advertising('b');
-      } else if ((time_count * (1000/SAMPLING_RATE)) == MAX30205_READ_INTERVAL/2) {      
-        if (enable_broadcast_mode)
-            update_advertising('a');
+            update_advertising();
       }
     }
     
@@ -980,34 +977,28 @@ md[7:8] - Battery
 md[9:11] - Reserved
 */
 
-void update_advertising(char mode) {
+
+bool toggle = false;
+
+void update_advertising() {
   //Serial.println("Updated advertising");
 
   char mfg_data[50]; 
-  if (mode == 'a') {
-      sprintf(mfg_data, "G%03d a H%03d R%03d S%03d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate, 
-          (afe44xx_raw_data.spo2));
-      Serial.println(mfg_data);
+  if (toggle) {
+      // sprintf(mfg_data, "G%03d a H%03d R%03d S%03d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate, 
+      //     (afe44xx_raw_data.spo2));
+      // Serial.println(mfg_data);
       sprintf(mfg_data, "%02xa%02x%02x%02x        ", mfg_update_seq, (uint)global_HeartRate & 0xFF, 
         (uint)global_RespirationRate & 0xFF, (uint)(afe44xx_raw_data.spo2) & 0xFF);
 
-  } else if (mode == 'b') {
-      sprintf(mfg_data, "G%x b T%05d B%03d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent);
-      Serial.println(mfg_data);
-      sprintf(mfg_data, "%02xb%04x%02x%        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff);
   } else {
-      sprintf(mfg_data, "Unknown\0");
-      Serial.println(mfg_data);
-      sprintf(mfg_data, "%02xu------        ", mfg_update_seq);
+      // sprintf(mfg_data, "G%03d b T%05d B%03d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent);
+      // Serial.println(mfg_data);
+      sprintf(mfg_data, "%02xb%04x%02x%        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff);
   }
+  toggle = !toggle;
 
-  // sprintf(mfg_data, "G%x H%x R%x S%x T%x", mfg_update_seq, global_HeartRate, global_RespirationRate, 
-  //         afe44xx_raw_data.spo2, temperature);
-  // Serial.println(mfg_data);
 
-  // sprintf(mfg_data, "%02x%02x%02x%04x%02x%02x", mfg_update_seq, (uint)global_HeartRate & 0xFF, 
-  //         (uint)global_RespirationRate & 0xFF, (uint)temperature & 0xFFFF, bat_percent & 0xff
-  //         );
   int mfg_data_len = 12;
   mfg_data[mfg_data_len] = '\0';
   Serial.println(mfg_data);
@@ -1674,9 +1665,8 @@ void loop()
       get_temp_data();
       //reading the battery with same interval as temp sensor
       read_battery_value();
-      update_advertising('b');
-    } else if ((time_count * (1000/SAMPLING_RATE)) == MAX30205_READ_INTERVAL/2) {      
-      update_advertising('a');
+      if (enable_broadcast_mode)
+          update_advertising();
     }
   
     if(Healthypi_Mode == BLE_MODE)
