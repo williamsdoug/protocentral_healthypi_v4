@@ -74,6 +74,9 @@
 const char* ble_device_name = "Healthypi v4";
 const int man_code = 0x02E5;   //manufacturer code (0x02E5 for Espressif)
 char mfg_update_seq = 0;
+volatile bool enable_broadcast_mode = true;
+
+
 
 unsigned int array[MAX];
 
@@ -598,23 +601,29 @@ void HealthyPiV4_BLE_Init()
 
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(Heartrate_SERVICE_UUID);
-  pAdvertising->addServiceUUID(sp02_SERVICE_UUID);
-  pAdvertising->addServiceUUID(TEMP_SERVICE_UUID);
-  pAdvertising->addServiceUUID(BATTERY_SERVICE_UUID);
-  pAdvertising->addServiceUUID(HRV_SERVICE_UUID);
-  pAdvertising->addServiceUUID(DATASTREAM_SERVICE_UUID);
 
+  if (enable_broadcast_mode) {
+    // add scan response
+    BLEAdvertisementData scan_response;
+    scan_response.setName(ble_device_name);
+    //char* mfg_data = "Initial Data";
+    char* mfg_data = "12345678901234567890";
+    setManData(mfg_data, strlen(mfg_data), scan_response, man_code);
+    pAdvertising->setScanResponseData(scan_response);
+    //pAdvertising->setScanResponse(true);
+  };
 
   //pAdvertising->setScanResponse(false);
 
-  // add scan response
-  BLEAdvertisementData scan_response;
-  scan_response.setName(ble_device_name);
-  char* mfg_data = "Initial Data";
-  setManData(mfg_data, strlen(mfg_data), scan_response, man_code);
-  pAdvertising->setScanResponseData(scan_response);
-  //pAdvertising->setScanResponse(true);
+  if (true) {       // (! enable_broadcast_mode) {
+    pAdvertising->addServiceUUID(Heartrate_SERVICE_UUID);
+    pAdvertising->addServiceUUID(sp02_SERVICE_UUID);
+    pAdvertising->addServiceUUID(TEMP_SERVICE_UUID);
+    pAdvertising->addServiceUUID(BATTERY_SERVICE_UUID);
+  };
+
+  pAdvertising->addServiceUUID(HRV_SERVICE_UUID);
+  pAdvertising->addServiceUUID(DATASTREAM_SERVICE_UUID);
 
   pAdvertising->setMinPreferred(0x00);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
@@ -904,13 +913,15 @@ void ble_advertising()
         digitalWrite(A13, HIGH);    // turn the LED off by making the voltage LOW
       }
 
-
-      if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL)
-      {      
+      if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL) {      
         time_count = 0;
         get_temp_data();
         read_battery_value();
-        update_advertising();
+        if (enable_broadcast_mode)
+            update_advertising('b');
+      } else if ((time_count * (1000/SAMPLING_RATE)) == MAX30205_READ_INTERVAL/2) {      
+        if (enable_broadcast_mode)
+            update_advertising('a');
       }
     }
     
@@ -952,23 +963,51 @@ void setManData(char* c, int c_size, BLEAdvertisementData &adv, int m_code) {
 /*
 Manufacturer Data Format -- all values encoded in hex characters
 md[1:0] - Sequence number (mod 255)
-md[2:3] - HR
-md[4:5] - RR
-md[6:9] - Temp
-md[10:11] - Battery
+md[2]   - Packet type = A
+md[3:4] - HR
+md[5:6] - RR
+md[7:8] - SP02
+md[9:11] - Reserved
 */
 
-void update_advertising() {
-  Serial.println("Updated advertising");
 
-  char mfg_data[30]; 
-  sprintf(mfg_data, "G%x H%x R%x S%x T%x", mfg_update_seq, global_HeartRate, global_RespirationRate, 
-          afe44xx_raw_data.spo2, temperature);
-  Serial.println(mfg_data);
+/*
+Manufacturer Data Format -- all values encoded in hex characters
+md[1:0] - Sequence number (mod 255)
+md[2]   - Packet type = B
+md[3:6] - Temp
+md[7:8] - Battery
+md[9:11] - Reserved
+*/
 
-  sprintf(mfg_data, "%02x%02x%02x%04x%02x%02x", mfg_update_seq, (uint)global_HeartRate & 0xFF, 
-          (uint)global_RespirationRate & 0xFF, (uint)temperature & 0xFFFF, bat_percent & 0xff
-          );
+void update_advertising(char mode) {
+  //Serial.println("Updated advertising");
+
+  char mfg_data[50]; 
+  if (mode == 'a') {
+      sprintf(mfg_data, "G%03d a H%03d R%03d S%03d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate, 
+          (afe44xx_raw_data.spo2));
+      Serial.println(mfg_data);
+      sprintf(mfg_data, "%02xa%02x%02x%02x        ", mfg_update_seq, (uint)global_HeartRate & 0xFF, 
+        (uint)global_RespirationRate & 0xFF, (uint)(afe44xx_raw_data.spo2) & 0xFF);
+
+  } else if (mode == 'b') {
+      sprintf(mfg_data, "G%x b T%05d B%03d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent);
+      Serial.println(mfg_data);
+      sprintf(mfg_data, "%02xb%04x%02x%        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff);
+  } else {
+      sprintf(mfg_data, "Unknown\0");
+      Serial.println(mfg_data);
+      sprintf(mfg_data, "%02xu------        ", mfg_update_seq);
+  }
+
+  // sprintf(mfg_data, "G%x H%x R%x S%x T%x", mfg_update_seq, global_HeartRate, global_RespirationRate, 
+  //         afe44xx_raw_data.spo2, temperature);
+  // Serial.println(mfg_data);
+
+  // sprintf(mfg_data, "%02x%02x%02x%04x%02x%02x", mfg_update_seq, (uint)global_HeartRate & 0xFF, 
+  //         (uint)global_RespirationRate & 0xFF, (uint)temperature & 0xFFFF, bat_percent & 0xff
+  //         );
   int mfg_data_len = 12;
   mfg_data[mfg_data_len] = '\0';
   Serial.println(mfg_data);
@@ -1630,13 +1669,14 @@ void loop()
   
     read_afe4490_data();
    
-    if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL)
-    {      
+    if ((time_count++ * (1000/SAMPLING_RATE)) > MAX30205_READ_INTERVAL) {      
       time_count = 0;
       get_temp_data();
       //reading the battery with same interval as temp sensor
       read_battery_value();
-      update_advertising();
+      update_advertising('b');
+    } else if ((time_count * (1000/SAMPLING_RATE)) == MAX30205_READ_INTERVAL/2) {      
+      update_advertising('a');
     }
   
     if(Healthypi_Mode == BLE_MODE)
