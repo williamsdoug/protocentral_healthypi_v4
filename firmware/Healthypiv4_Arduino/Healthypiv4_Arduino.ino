@@ -1115,15 +1115,31 @@ void update_advertising() {
 
 void update_vitals() {
   // Perform 1 second update of vitals and perform notification
-  struct vitals_notification pkt;
-  pkt.temp = (uint)bat_percent & 0xff;
-  pkt.hr = (uint)global_HeartRate & 0xFF;
-  pkt.rr = (uint)global_RespirationRate & 0xFF;
-  pkt.spo2 = (uint)(afe44xx_raw_data.spo2) & 0xFF;
-  pkt.batt = (uint)bat_percent & 0xff;
+  uint8_t payload[6];
+  payload[0] = (uint)bat_percent>>8 & 0xff;
+  payload[1] = (uint)bat_percent & 0xff;
+  payload[2] = (uint)global_HeartRate & 0xFF;
+  payload[3] = (uint)global_RespirationRate & 0xFF;
+  payload[4] = (uint)(afe44xx_raw_data.spo2) & 0xFF;
+  payload[5] = (uint)bat_percent & 0xff;
 
-  vitals_Characteristic->setValue((uint8_t*)&pkt, sizeof(pkt));
+  vitals_Characteristic->setValue(payload, sizeof(payload));
   vitals_Characteristic->notify();
+
+
+
+
+
+
+  // struct vitals_notification pkt;
+  // pkt.temp = (uint)bat_percent & 0xffff;
+  // pkt.hr = (uint)global_HeartRate & 0xFF;
+  // pkt.rr = (uint)global_RespirationRate & 0xFF;
+  // pkt.spo2 = (uint)(afe44xx_raw_data.spo2) & 0xFF;
+  // pkt.batt = (uint)bat_percent & 0xff;
+
+  // vitals_Characteristic->setValue((uint8_t*)&pkt, sizeof(pkt));
+  // vitals_Characteristic->notify();
 }
 
 
