@@ -1116,8 +1116,8 @@ void update_advertising() {
 void update_vitals() {
   // Perform 1 second update of vitals and perform notification
   uint8_t payload[6];
-  payload[0] = (uint)bat_percent>>8 & 0xff;
-  payload[1] = (uint)bat_percent & 0xff;
+  payload[0] = (uint)temperature>>8 & 0xff;
+  payload[1] = (uint)temperature & 0xff;
   payload[2] = (uint)global_HeartRate & 0xFF;
   payload[3] = (uint)global_RespirationRate & 0xFF;
   payload[4] = (uint)(afe44xx_raw_data.spo2) & 0xFF;
@@ -1131,8 +1131,9 @@ void update_vitals() {
 
 
 
+
   // struct vitals_notification pkt;
-  // pkt.temp = (uint)bat_percent & 0xffff;
+  // pkt.temp = (uint)temperature & 0xffff;
   // pkt.hr = (uint)global_HeartRate & 0xFF;
   // pkt.rr = (uint)global_RespirationRate & 0xFF;
   // pkt.spo2 = (uint)(afe44xx_raw_data.spo2) & 0xFF;
@@ -1795,7 +1796,7 @@ void loop()
           update_advertising();
     }
 
-    if (vital_count++ == SAMPLING_RATE) {
+    if (vital_count++ == SAMPLING_RATE<<1) {
       vital_count = 0;
       update_vitals();
     }
