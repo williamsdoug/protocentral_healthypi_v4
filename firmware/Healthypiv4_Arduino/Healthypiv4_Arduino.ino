@@ -84,7 +84,7 @@ const char* ble_device_name = "Healthypi v4";
 const int man_code = 0x02E5;   //manufacturer code (0x02E5 for Espressif)
 char mfg_update_seq = 0;
 volatile bool enable_broadcast_mode = true;
-
+uint vital_count = 0;
 
 
 unsigned int array[MAX];
@@ -208,6 +208,7 @@ BLECharacteristic* Heartrate_Characteristic = NULL;
 BLECharacteristic* sp02_Characteristic = NULL;
 BLECharacteristic* datastream_Characteristic = NULL;
 BLECharacteristic* name_Characteristic = NULL;   // DDW
+BLECharacteristic* vitals_Characteristic = NULL;   // DDW
 BLECharacteristic* battery_Characteristic = NULL;
 BLECharacteristic* temperature_Characteristic = NULL;
 BLECharacteristic* hist_Characteristic = NULL;
@@ -220,6 +221,15 @@ MAX30205 tempSensor;
 spo2_algorithm spo2;
 ads1292r_data ads1292r_raw_data;
 afe44xx_data afe44xx_raw_data;
+
+struct vitals_notification {
+  uint16_t temp;
+  uint8_t hr;
+  uint8_t rr;
+  uint8_t spo2;
+  uint8_t batt;
+};
+
 
 
 /*
@@ -654,6 +664,12 @@ void HealthyPiV4_BLE_Init()
                               BLECharacteristic::PROPERTY_WRITE  |
                               BLECharacteristic::PROPERTY_NOTIFY 
                               );
+  vitals_Characteristic = datastreamService->createCharacteristic(
+                              HP_VITALS_CHARACTERISTIC_UUID,
+                              //BLECharacteristic::PROPERTY_READ   |
+                              //BLECharacteristic::PROPERTY_WRITE  |
+                              BLECharacteristic::PROPERTY_NOTIFY 
+                              );
                 
   Heartrate_Characteristic->addDescriptor(new BLE2902());
   sp02_Characteristic->addDescriptor(new BLE2902());
@@ -665,6 +681,7 @@ void HealthyPiV4_BLE_Init()
   datastream_Characteristic->setCallbacks(new MyCallbackHandler()); 
   name_Characteristic->addDescriptor(new BLE2902());
   name_Characteristic->setCallbacks(new NameCallbackHandler()); 
+  vitals_Characteristic->addDescriptor(new BLE2902());
 
   // Start the service
   HeartrateService->start();
@@ -1094,6 +1111,21 @@ void update_advertising() {
   pAdvertising->start();
 
 }
+
+
+void update_vitals() {
+  // Perform 1 second update of vitals and perform notification
+  struct vitals_notification pkt;
+  pkt.temp = (uint)bat_percent & 0xff;
+  pkt.hr = (uint)global_HeartRate & 0xFF;
+  pkt.rr = (uint)global_RespirationRate & 0xFF;
+  pkt.spo2 = (uint)(afe44xx_raw_data.spo2) & 0xFF;
+  pkt.batt = (uint)bat_percent & 0xff;
+
+  vitals_Characteristic->setValue((uint8_t*)&pkt, sizeof(pkt));
+  vitals_Characteristic->notify();
+}
+
 
 
 void V3_mode_indication()
@@ -1746,6 +1778,13 @@ void loop()
       if (enable_broadcast_mode)
           update_advertising();
     }
+
+    if (vital_count++ == SAMPLING_RATE) {
+      vital_count = 0;
+      update_vitals();
+    }
+
+
   
     if(Healthypi_Mode == BLE_MODE)
     {
