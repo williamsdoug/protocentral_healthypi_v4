@@ -42,8 +42,17 @@
 #define Heartrate_CHARACTERISTIC_UUID (uint16_t(0x2A37))
 #define sp02_SERVICE_UUID (uint16_t(0x1822)) 
 #define sp02_CHARACTERISTIC_UUID (uint16_t(0x2A5E))
-#define DATASTREAM_SERVICE_UUID (uint16_t(0x1122)) 
+
+// Note:  Below repurposes BasicPrinting Service / HumanInterfaceDeviceService as Characteristic / 
+#define DATASTREAM_SERVICE_UUID (uint16_t(0x1122))                        
 #define DATASTREAM_CHARACTERISTIC_UUID (uint16_t(0x1424))
+
+
+// Note:  Below repurposes HCR_Print Characteristic / HCR_Scan Characteristic  -- DDW                   
+#define HP_NAME_CHARACTERISTIC_UUID (uint16_t(0x1426))                     
+#define HP_VITALS_CHARACTERISTIC_UUID (uint16_t(0x1427))
+
+
 #define TEMP_SERVICE_UUID (uint16_t(0x1809)) 
 #define TEMP_CHARACTERISTIC_UUID (uint16_t(0x2a6e))
 #define BATTERY_SERVICE_UUID (uint16_t(0x180F)) 
@@ -147,6 +156,7 @@ int16_t res_wave_sample,resp_filterout;
 uint32_t hr_histgrm[HISTGRM_DATA_SIZE];
 
 bool deviceConnected = false;
+int deviceConnectedCount = 0;
 bool oldDeviceConnected = false;
 bool temp_data_ready = false;
 bool spo2_calc_done = false;
@@ -173,6 +183,7 @@ String ssid_to_connect;
 String password_to_connect;
 String tmp_ecgbu;
 String strValue = "";
+String nameValue = "";
 
 static int bat_prev=100;
 static uint8_t bat_percent = 100;
@@ -196,6 +207,7 @@ BLEServer* pServer = NULL;
 BLECharacteristic* Heartrate_Characteristic = NULL;
 BLECharacteristic* sp02_Characteristic = NULL;
 BLECharacteristic* datastream_Characteristic = NULL;
+BLECharacteristic* name_Characteristic = NULL;   // DDW
 BLECharacteristic* battery_Characteristic = NULL;
 BLECharacteristic* temperature_Characteristic = NULL;
 BLECharacteristic* hist_Characteristic = NULL;
@@ -209,48 +221,12 @@ spo2_algorithm spo2;
 ads1292r_data ads1292r_raw_data;
 afe44xx_data afe44xx_raw_data;
 
-class MyServerCallbacks: public BLEServerCallbacks 
-{
-  void onConnect(BLEServer* pServer)
-  {
-    deviceConnected = true;
-    Serial.println("connected");
 
-    // Keep advertising
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->start();
-  }
+/*
+ * Web Server Related Code
+*/
 
-  void onDisconnect(BLEServer* pServer)
-  {
-    deviceConnected = false;
-  }
-};
-
-class MyCallbackHandler: public BLECharacteristicCallbacks 
-{
-  void onWrite(BLECharacteristic *datastream_Characteristic)
-  {
-    std::string value = datastream_Characteristic->getValue();
-    int len = value.length();
-    strValue = "0";
-
-    if (value.length() > 0) 
-    {
-      Serial.print("New value: ");
-
-      for (int i = 0; i < value.length(); i++)
-      {
-        Serial.print(String(value[i]));
-        strValue += value[i];
-      }
-
-      Serial.println();
-    }
-
-  }
-};
-
+// below function currently unused
 String processor(const String& var)
 {
 
@@ -358,6 +334,11 @@ void slideswitch_intr_handler()
   }
 
 }
+
+
+/*
+ * File system routines
+ */
 
 void delLine(fs::FS &fs, const char * path, uint32_t line,const int char_to_delete)
 { 
@@ -488,7 +469,7 @@ void writeFile(fs::FS &fs, const char * path, const char * message)
   } 
   else 
   {
-    Serial.println("- frite failed");
+    Serial.println("- file write failed");
   }
 
   file.close();
@@ -518,6 +499,87 @@ void readFile(fs::FS &fs, const char * path, int* data_count, char* file_data)
   file.close();
   Serial.println("file closed");
 }
+
+
+/*
+ * Bluetooth Routines
+ */
+
+// Overall BLE Server handler
+class MyServerCallbacks: public BLEServerCallbacks 
+{
+  void onConnect(BLEServer* pServer)
+  {
+    deviceConnected = true;
+    deviceConnectedCount++;
+    Serial.println("connected");
+
+    // Keep advertising
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->start();
+  }
+
+  void onDisconnect(BLEServer* pServer)
+  {
+    deviceConnectedCount--;
+    if (deviceConnectedCount == 0) {
+      deviceConnected = false;
+      Serial.println("all disconnected");
+    } else {
+
+      Serial.println("device disconnected");
+    }
+  }
+};
+
+
+// Handler for patient name characteristic
+class NameCallbackHandler: public BLECharacteristicCallbacks 
+{
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    nameValue = name_Characteristic->getValue().c_str();
+    Serial.printf("New name: %s\n", nameValue); 
+    writeFile(SPIFFS,"/patientname.txt",nameValue.c_str()); 
+    pCharacteristic->notify();   
+  }
+
+  void onRead(BLECharacteristic* pCharacteristic){
+    if(nameValue.length() == 0) {
+      // get value from disk
+      readPatientName();
+    }
+
+    pCharacteristic->setValue(nameValue.c_str());
+    Serial.printf("Reading name: %s\n", nameValue);
+  };
+};
+
+
+void readPatientName() {
+  char patient_name[128];
+  int patient_size = -1;
+  readFile(SPIFFS,"/patientname.txt", &patient_size, patient_name);
+  if (patient_size > 0) {
+    patient_name[patient_size] = 0;
+    nameValue = String(patient_name);
+  }
+
+}
+
+
+// Ashwin's experimental service
+class MyCallbackHandler: public BLECharacteristicCallbacks 
+{
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    String value = datastream_Characteristic->getValue().c_str();
+    Serial.printf("New value: %s\n", value);
+  }
+};
+
+
+
+
+
 
 void HealthyPiV4_BLE_Init()
 {
@@ -580,6 +642,13 @@ void HealthyPiV4_BLE_Init()
                               BLECharacteristic::PROPERTY_WRITE  |
                               BLECharacteristic::PROPERTY_NOTIFY 
                               );
+ 
+  name_Characteristic = datastreamService->createCharacteristic(
+                              HP_NAME_CHARACTERISTIC_UUID,
+                              BLECharacteristic::PROPERTY_READ   |
+                              BLECharacteristic::PROPERTY_WRITE  |
+                              BLECharacteristic::PROPERTY_NOTIFY 
+                              );
                 
   Heartrate_Characteristic->addDescriptor(new BLE2902());
   sp02_Characteristic->addDescriptor(new BLE2902());
@@ -589,6 +658,8 @@ void HealthyPiV4_BLE_Init()
   hrv_Characteristic->addDescriptor(new BLE2902());
   datastream_Characteristic->addDescriptor(new BLE2902());
   datastream_Characteristic->setCallbacks(new MyCallbackHandler()); 
+  name_Characteristic->addDescriptor(new BLE2902());
+  name_Characteristic->setCallbacks(new NameCallbackHandler()); 
 
   // Start the service
   HeartrateService->start();
@@ -978,13 +1049,13 @@ md[9:11] - Reserved
 */
 
 
-bool toggle = false;
+int toggle = 0;
 
 void update_advertising() {
   //Serial.println("Updated advertising");
 
   char mfg_data[50]; 
-  if (toggle) {
+  if (toggle != 0) {
       // sprintf(mfg_data, "G%03d a H%03d R%03d S%03d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate, 
       //     (afe44xx_raw_data.spo2));
       // Serial.println(mfg_data);
@@ -996,7 +1067,9 @@ void update_advertising() {
       // Serial.println(mfg_data);
       sprintf(mfg_data, "%02xb%04x%02x%        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff);
   }
-  toggle = !toggle;
+  toggle++;
+  if (toggle == 3)
+      toggle = 0;
 
 
   int mfg_data_len = 12;
