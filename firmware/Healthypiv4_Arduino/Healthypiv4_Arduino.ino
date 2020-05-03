@@ -539,7 +539,12 @@ class NameCallbackHandler: public BLECharacteristicCallbacks
   void onWrite(BLECharacteristic *pCharacteristic) {
     nameValue = name_Characteristic->getValue().c_str();
     Serial.printf("New name: %s\n", nameValue); 
-    writeFile(SPIFFS,"/patientname.txt",nameValue.c_str()); 
+    if (nameValue.length() > 0) {
+      writeFile(SPIFFS,"/patientname.txt",nameValue.c_str()); 
+    } else {
+      deleteFile(SPIFFS,"/patientname.txt");
+      Serial.println("Deleted patientname.txt"); 
+    }
     pCharacteristic->notify();   
   }
 
