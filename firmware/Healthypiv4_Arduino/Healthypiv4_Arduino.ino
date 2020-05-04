@@ -708,7 +708,7 @@ void HealthyPiV4_BLE_Init()
 
   //pAdvertising->setScanResponse(false);
 
-  if (true) {       // (! enable_broadcast_mode) {
+  if (! enable_broadcast_mode) {
     pAdvertising->addServiceUUID(Heartrate_SERVICE_UUID);
     pAdvertising->addServiceUUID(sp02_SERVICE_UUID);
     pAdvertising->addServiceUUID(TEMP_SERVICE_UUID);
