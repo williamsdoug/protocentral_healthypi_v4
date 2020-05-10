@@ -1087,7 +1087,7 @@ md[2]   - Packet type = A
 md[3:4] - HR
 md[5:6] - RR
 md[7:8] - SP02
-md[9:11] - Reserved
+md[9:11] - Name hash (12 bits)
 */
 
 
@@ -1097,7 +1097,7 @@ md[1:0] - Sequence number (mod 255)
 md[2]   - Packet type = B
 md[3:6] - Temp
 md[7:8] - Battery
-md[9:11] - Name hash (12 bits)
+md[9:11] - Reserved 
 */
 
 
@@ -1108,16 +1108,16 @@ void update_advertising() {
 
   char mfg_data[50];
   if (toggle != 0) {
-      // sprintf(mfg_data, "G%03d a H%03d R%03d S%03d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate,
-      //     (afe44xx_raw_data.spo2));
+      // sprintf(mfg_data, "G%03d a H%03d R%03d S%03d N%5d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate,
+      //     (afe44xx_raw_data.spo2), (uint)nameHash);
       // Serial.println(mfg_data);
-      sprintf(mfg_data, "%02xa%02x%02x%02x        ", mfg_update_seq, (uint)global_HeartRate & 0xFF,
-        (uint)global_RespirationRate & 0xFF, (uint)(afe44xx_raw_data.spo2) & 0xFF);
+      sprintf(mfg_data, "%02xa%02x%02x%02x%03x     ", mfg_update_seq, (uint)global_HeartRate & 0xFF,
+        (uint)global_RespirationRate & 0xFF, (uint)(afe44xx_raw_data.spo2) & 0xFF, nameHash &0xfff);
 
   } else {
-      // sprintf(mfg_data, "G%03d b T%05d B%03d N%5d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent, (uint)nameHash);
+      // sprintf(mfg_data, "G%03d b T%05d B%03d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent);
       // Serial.println(mfg_data);
-      sprintf(mfg_data, "%02xb%04x%02x%03x        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff, nameHash &0xfff);
+      sprintf(mfg_data, "%02xb%04x%02x        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff);
   }
   toggle++;
   if (toggle == 3)
