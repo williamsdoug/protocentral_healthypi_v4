@@ -553,10 +553,11 @@ class NameCallbackHandler: public BLECharacteristicCallbacks
     if (nameValue.length() > 0) {
       writeFile(SPIFFS,"/patientname.txt",nameValue.c_str());
     } else {
+      nameValue = "!!null!!";
+      pCharacteristic->setValue(nameValue.c_str());
       deleteFile(SPIFFS,"/patientname.txt");
       Serial.println("Deleted patientname.txt");
     }
-    //pCharacteristic->setValue(nameValue.c_str());
     pCharacteristic->notify();
   }
 
@@ -579,6 +580,8 @@ void readPatientName() {
   if (patient_size > 0) {
     patient_name[patient_size] = 0;
     nameValue = String(patient_name);
+  } else {
+    nameValue = "!!null!!";
   }
 
 }
