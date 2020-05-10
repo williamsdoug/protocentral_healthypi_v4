@@ -13,8 +13,6 @@
 //   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
-//   Requires g4p_control graphing library for processing.
-//   Downloaded from Processing IDE Sketch->Import Library->Add Library->G4P Install
 //////////////////////////////////////////////////////////////////////////////////////
 
 // #include "esp32-hal-log.h"
@@ -78,6 +76,8 @@
 #define HISTGRM_DATA_SIZE      12*4
 #define HISTGRM_CALC_TH         10
 #define MAX                     20
+#define PPG_DATA                0X00
+#define RESP_DATA               0X01
 
 
 const char* ble_device_name = "Healthypi v4";
@@ -135,7 +135,7 @@ volatile bool histgrm_ready_flag = false;
 volatile unsigned int RR;
 
 uint8_t ecg_data_buff[20];
-uint8_t resp_data_buff[2];
+uint8_t resp_data_buff[20];
 uint8_t ppg_data_buff[20];
 uint8_t Healthypi_Mode = WEBSERVER_MODE;
 uint8_t lead_flag = 0x04;
@@ -146,10 +146,10 @@ uint8_t hr_percent_count = 0;
 uint8_t hrv_array[20];
 
 uint16_t ecg_stream_cnt = 0;
-uint16_t resp_stream_cnt = 0;
-uint16_t ppg_stream_cnt = 0;
-uint16_t ppg_wave_ir;
+uint16_t resp_stream_cnt = 1;
+uint16_t ppg_stream_cnt = 1;
 
+int16_t ppg_wave_ir;
 int16_t ecg_wave_sample,ecg_filterout;
 int16_t res_wave_sample,resp_filterout;
 
@@ -163,6 +163,7 @@ bool spo2_calc_done = false;
 bool ecg_buf_ready = false;
 bool resp_buf_ready = false;
 bool ppg_buf_ready = false;
+bool resp_buf_read = false;
 bool hrv_ready_flag = false;
 bool mode_write_flag = false;
 bool slide_switch_flag = false;
@@ -1245,26 +1246,26 @@ void send_data_serial_port(void)
 void handle_ble_stack()
 {
 
-  if(strValue == "\0")
+  if(ecg_buf_ready)
   {
-
-    if(ecg_buf_ready)
-    {
-      ecg_buf_ready = false;
-      datastream_Characteristic->setValue(ecg_data_buff, 18);
-      datastream_Characteristic->notify();
-    }
-
+    ecg_buf_ready = false;
+    datastream_Characteristic->setValue(ecg_data_buff, 18);
+    datastream_Characteristic->notify();
   }
-  else if(strValue =="0spo2")
-  {
 
-    if(ppg_buf_ready)
-    {
-      ppg_buf_ready = false;
-      datastream_Characteristic->setValue(ppg_data_buff, 18);
-      datastream_Characteristic->notify();
-    }
+  if(ppg_buf_ready)
+  {
+    ppg_buf_ready = false;
+    ppg_data_buff[0]=PPG_DATA;
+    hist_Characteristic->setValue(&ppg_data_buff[1], 18);
+    hist_Characteristic->notify();
+  }
+
+  if(resp_buf_ready){
+    resp_buf_ready = false;
+    resp_data_buff[0]=RESP_DATA;
+   // hist_Characteristic->setValue(&resp_data_buff[0], 19);
+   // hist_Characteristic->notify();
 
   }
 
@@ -1676,7 +1677,8 @@ boolean get_ADS1292R_data() {
     if(npeakflag == 1)
     {
       read_send_data(global_HeartRate,global_RespirationRate);
-      add_hr_histgrm(global_HeartRate);
+      //disabled histogram. hist characteristic is used for ppg and respiration data stream.
+      //add_hr_histgrm(global_HeartRate);
       npeakflag = 0;
     }
 
@@ -1696,16 +1698,16 @@ boolean get_ADS1292R_data() {
 void read_afe4490_data() {
     SPI.setDataMode (SPI_MODE0);
     afe4490.get_AFE4490_Data(&afe44xx_raw_data,AFE4490_CS_PIN,AFE4490_DRDY_PIN);
-    ppg_wave_ir = (uint16_t)(afe44xx_raw_data.IR_data>>8);
+    ppg_wave_ir = (int16_t)(afe44xx_raw_data.IR_data>>8);
     ppg_wave_ir = ppg_wave_ir;
 
     ppg_data_buff[ppg_stream_cnt++] = (uint8_t)ppg_wave_ir;
     ppg_data_buff[ppg_stream_cnt++] = (ppg_wave_ir>>8);
 
-    if(ppg_stream_cnt >=18)
+    if(ppg_stream_cnt >=19)
     {
       ppg_buf_ready = true;
-      ppg_stream_cnt = 0;
+      ppg_stream_cnt = 1;
     }
 
     memcpy(&DataPacket[4], &afe44xx_raw_data.IR_data, sizeof(signed long));
@@ -1758,14 +1760,22 @@ void loop()
 
       if(Healthypi_Mode == BLE_MODE)
       {
-        ecg_data_buff[ecg_stream_cnt++] = (uint8_t)ecg_wave_sample;//ecg_filterout;
-        ecg_data_buff[ecg_stream_cnt++] = (ecg_wave_sample>>8);//(ecg_filterout>>8);
+        ecg_data_buff[ecg_stream_cnt++] = (uint8_t)ecg_filterout;//ecg_filterout;
+        ecg_data_buff[ecg_stream_cnt++] = (ecg_filterout>>8);//(ecg_filterout>>8);
 
-       if(ecg_stream_cnt >=18)
-       {
+        resp_data_buff[resp_stream_cnt++] = (uint8_t) resp_filterout;
+        resp_data_buff[resp_stream_cnt++] = (resp_filterout>>8);
+        if(ecg_stream_cnt >=18)
+        {
           ecg_buf_ready = true;
           ecg_stream_cnt = 0;
-       }
+        }
+
+        if(resp_stream_cnt >=19)
+        {
+          resp_buf_ready = true;
+          resp_stream_cnt = 1;
+        }
 
       }
       else if(Healthypi_Mode == WEBSERVER_MODE)
