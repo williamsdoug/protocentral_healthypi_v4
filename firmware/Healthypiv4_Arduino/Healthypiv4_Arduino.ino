@@ -185,6 +185,7 @@ String password_to_connect;
 String tmp_ecgbu;
 String strValue = "";
 String nameValue = "";
+unsigned int nameHash = 0;
 
 static int bat_prev=100;
 static uint8_t bat_percent = 100;
@@ -558,6 +559,7 @@ class NameCallbackHandler: public BLECharacteristicCallbacks
       deleteFile(SPIFFS,"/patientname.txt");
       Serial.println("Deleted patientname.txt");
     }
+    getNameHash();
     pCharacteristic->notify();
   }
 
@@ -584,6 +586,29 @@ void readPatientName() {
     nameValue = "!!null!!";
   }
 
+  getNameHash();
+  
+}
+
+
+// from: https://stackoverflow.com/questions/19204750/how-do-i-perform-a-circular-rotation-of-a-byte
+unsigned int rotl12(unsigned int c, int n)
+{
+    return ((c << n) | (c >> (12-n))) & 0x0fff;
+}
+
+
+void getNameHash() {
+     nameHash = 0;
+     int j = 0;
+    for(int i=0; i< nameValue.length(); i++) {
+      if (j == 12) {
+        j = 0;
+      }
+      nameHash = nameHash ^ rotl12(nameValue.charAt(i), j);
+      j++;
+    }
+    Serial.printf("Hash: %u\n", nameHash);
 }
 
 
@@ -1072,7 +1097,7 @@ md[1:0] - Sequence number (mod 255)
 md[2]   - Packet type = B
 md[3:6] - Temp
 md[7:8] - Battery
-md[9:11] - Reserved
+md[9:11] - Name hash (12 bits)
 */
 
 
@@ -1090,9 +1115,9 @@ void update_advertising() {
         (uint)global_RespirationRate & 0xFF, (uint)(afe44xx_raw_data.spo2) & 0xFF);
 
   } else {
-      // sprintf(mfg_data, "G%03d b T%05d B%03d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent);
+      // sprintf(mfg_data, "G%03d b T%05d B%03d N%5d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent, (uint)nameHash);
       // Serial.println(mfg_data);
-      sprintf(mfg_data, "%02xb%04x%02x%        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff);
+      sprintf(mfg_data, "%02xb%04x%02x%03x        ", mfg_update_seq, (uint)temperature & 0xFFFF, (uint)bat_percent & 0xff, nameHash &0xfff);
   }
   toggle++;
   if (toggle == 3)
