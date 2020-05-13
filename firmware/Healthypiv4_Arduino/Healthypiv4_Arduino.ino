@@ -221,6 +221,7 @@ ads1292r_processing ECG_RESPIRATION_ALGORITHM; // define class ecg_algorithm
 AFE4490 afe4490;
 MAX30205 tempSensor;
 spo2_algorithm spo2;
+uint8_t last_sp02 = 0;
 ads1292r_data ads1292r_raw_data;
 afe44xx_data afe44xx_raw_data;
 
@@ -1108,11 +1109,12 @@ void update_advertising() {
 
   char mfg_data[50];
   if (toggle != 0) {
-      // sprintf(mfg_data, "G%03d a H%03d R%03d S%03d N%5d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate,
-      //     (afe44xx_raw_data.spo2), (uint)nameHash);
-      // Serial.println(mfg_data);
+      //Serial.printf("SpO2 %d %d\n", (uint8_t)sp02, (uint8_t)(sp02 >> 8));
+      sprintf(mfg_data, "G%03d a H%03d R%03d S%03d N%5d\0", (uint)mfg_update_seq, (uint)global_HeartRate, (uint)global_RespirationRate,
+          last_sp02, (uint)nameHash);
+      Serial.println(mfg_data);
       sprintf(mfg_data, "%02xa%02x%02x%02x%03x     ", mfg_update_seq, (uint)global_HeartRate & 0xFF,
-        (uint)global_RespirationRate & 0xFF, (uint)(afe44xx_raw_data.spo2) & 0xFF, nameHash &0xfff);
+        (uint)global_RespirationRate & 0xFF, last_sp02, nameHash &0xfff);
 
   } else {
       // sprintf(mfg_data, "G%03d b T%05d B%03d\0", mfg_update_seq, (uint)temperature, (uint)bat_percent);
@@ -1150,7 +1152,7 @@ void update_vitals() {
   payload[1] = (uint)temperature & 0xff;
   payload[2] = (uint)global_HeartRate & 0xFF;
   payload[3] = (uint)global_RespirationRate & 0xFF;
-  payload[4] = (uint)(afe44xx_raw_data.spo2) & 0xFF;
+  payload[4] = (uint8_t)last_sp02 & 0xFF;
   payload[5] = (uint)bat_percent & 0xff;
 
   vitals_Characteristic->setValue(payload, sizeof(payload));
@@ -1320,6 +1322,8 @@ void handle_ble_stack()
     sp02_Characteristic->setValue(spo2_att_ble, 5);
     sp02_Characteristic->notify();
     spo2_calc_done = false;
+    last_sp02 = (uint8_t)sp02;  // DDW:  Keep stable version
+    Serial.printf("SpO2 %d %d\n", (uint8_t)sp02, (uint8_t)(sp02 >> 8));
   }
 
   if(hrv_ready_flag)
